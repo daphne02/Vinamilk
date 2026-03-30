@@ -1,23 +1,9 @@
 // ==========================================
 // 1. DỮ LIỆU MÔ PHỎNG (MOCK DATABASE)
 // ==========================================
-const inventoryDb = {
-    "Sữa tươi tiệt trùng 180ml": { stock: 150, price: 6500 },
-    "Sữa chua có đường 100g": { stock: 50, price: 5000 },
-    "Sữa đặc Ông Thọ": { stock: 10, price: 25000 },
-    "Sữa bột Dielac Alpha": { stock: 0, price: 350000 } 
-};
+const inventoryDb = {};
 
-let salesDb = [
-    {
-        id: "XH-2001", date: "2026-03-25", customer: "Tạp hóa Cô Ba", status: "processing",
-        total: 650000, items: [ { name: "Sữa tươi tiệt trùng 180ml", qty: 100, price: 6500 } ]
-    },
-    {
-        id: "XH-2002", date: "2026-03-26", customer: "Siêu thị Mini Mart", status: "delivered",
-        total: 250000, items: [ { name: "Sữa chua có đường 100g", qty: 50, price: 5000 } ]
-    }
-];
+let salesDb = [];
 
 // ==========================================
 // 2. LOGIC RENDER BẢNG LỊCH SỬ

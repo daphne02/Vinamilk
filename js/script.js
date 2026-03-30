@@ -1,23 +1,34 @@
 // ==========================================
-// 1. MOCK DATABASE TOÀN CỤC
+// 1. BIẾN TOÀN CỤC (Chờ dữ liệu từ API)
 // ==========================================
-window.ordersDb = [
-    {
-        id: "NH-1001", date: "2026-03-20", supplier: "Kho tổng Vinamilk", status: "completed",
-        items: [ { name: "Sữa tươi tiệt trùng 180ml", qty: 500, note: "Nhập đủ" } ]
-    },
-    {
-        id: "NH-1002", date: "2026-03-25", supplier: "Nhà máy sữa Nghệ An", status: "pending",
-        items: [ { name: "Sữa chua có đường 100g", qty: 200, note: "Dự trù đợt 1" } ]
-    },
-    {
-        id: "NH-1003", date: "2026-03-26", supplier: "Nhà máy sữa Bình Dương", status: "pending",
-        items: [ { name: "Sữa đặc Ông Thọ", qty: 150, note: "Gấp" } ]
-    }
-];
+window.ordersDb = []; 
+window.productsList = []; // Chứa danh sách sản phẩm lấy từ DB để đổ vào Dropdown
 
 // ==========================================
-// 2. CÁC HÀM XỬ LÝ TOÀN CỤC
+// 2. CÁC HÀM GIAO TIẾP VỚI SERVER (API)
+// ==========================================
+
+// Tải dữ liệu từ Server khi trang web vừa mở
+window.loadServerData = async function() {
+    try {
+        // Lấy danh sách phiếu nhập
+        const resOrders = await fetch('api_nhaphang.php?action=get_orders');
+        window.ordersDb = await resOrders.json();
+        
+        // Lấy danh sách hàng hóa cho Dropdown
+        const resProducts = await fetch('api_nhaphang.php?action=get_products');
+        window.productsList = await resProducts.json();
+
+        // Render lại bảng với dữ liệu thật theo bộ lọc hiện tại
+        const currentFilter = document.getElementById("statusFilter") ? document.getElementById("statusFilter").value : 'all';
+        window.renderHistoryTable(currentFilter);
+    } catch (error) {
+        console.error("Lỗi tải dữ liệu:", error);
+    }
+}
+
+// ==========================================
+// 3. CÁC HÀM XỬ LÝ GIAO DIỆN TOÀN CỤC
 // ==========================================
 
 // Hàm Render Bảng Lịch Sử
@@ -26,31 +37,44 @@ window.renderHistoryTable = function(filterStatus) {
     if (!historyTableBody) return;
     historyTableBody.innerHTML = "";
     
-    const filteredOrders = window.ordersDb.filter(order => filterStatus === "all" || order.status === filterStatus);
+    // Nếu mảng rỗng (chưa có dữ liệu từ DB) hoặc lỗi
+    if (!window.ordersDb || window.ordersDb.length === 0 || window.ordersDb.error) {
+        historyTableBody.innerHTML = `<tr><td colspan="6" class="text-center">Chưa có dữ liệu phiếu nhập.</td></tr>`;
+        return;
+    }
+
+    // Lọc dữ liệu theo trạng thái
+    const filteredOrders = window.ordersDb.filter(order => {
+        if (filterStatus === "all") return true;
+        // Giả sử DB lưu N'Đang chờ' và N'Đã hoàn thành'
+        if (filterStatus === "pending") return order.TrangThai === "Đang chờ" || order.TrangThai === "Nợ" || !order.TrangThai; 
+        if (filterStatus === "completed") return order.TrangThai === "Đã hoàn thành";
+        return true;
+    });
 
     filteredOrders.forEach(order => {
-        // Tính tổng số lượng
-        const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
-
-        const isPending = order.status === "pending";
+        const isPending = order.TrangThai === "Đang chờ" || order.TrangThai === "Nợ" || !order.TrangThai;
         const statusBadge = isPending 
-            ? `<span class="badge-pending">⏳ Chờ xác nhận</span>` 
-            : `<span class="badge-completed">✅ Đã hoàn thành</span>`;
+            ? `<span class="badge-pending" style="color:#ffc107; font-weight:bold;">⏳ Chờ xác nhận</span>` 
+            : `<span class="badge-completed" style="color:#28a745; font-weight:bold;">✅ Đã hoàn thành</span>`;
         
         const confirmBtn = isPending 
-            ? `<button class="btn-action-confirm" onclick="confirmOrder('${order.id}')"><i class="fas fa-check"></i> Xác nhận</button>` 
+            ? `<button class="btn-action-confirm" onclick="confirmOrder('${order.MaNhap}')" style="background:#28a745; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;"><i class="fas fa-check"></i> Xác nhận</button>` 
             : "";
+
+        // Format ngày tháng (YYYY-MM-DD sang DD/MM/YYYY)
+        const dateObj = new Date(order.NgayNhap);
+        const formattedDate = !isNaN(dateObj) ? dateObj.toLocaleDateString('vi-VN') : order.NgayNhap;
 
         const rowHTML = `
             <tr>
-                <td><strong>${order.id}</strong></td>
-                <td>${order.date}</td>
-                <td>${order.supplier}</td>
-                <td><strong>${totalQty.toLocaleString('vi-VN')}</strong></td>
+                <td><strong>PN-${order.MaNhap}</strong></td>
+                <td>${formattedDate}</td>
+                <td>${order.NhaCungCap}</td>
+                <td><strong>${Number(order.TongSoLuong || 0).toLocaleString('vi-VN')}</strong></td>
                 <td>${statusBadge}</td>
                 <td class="text-center">
-                    <button class="btn-action-view" onclick="viewOrder('${order.id}')"><i class="fas fa-eye"></i> Xem</button>
-                    ${confirmBtn}
+                <button class="btn-action-view" onclick="viewOrderDetails('${order.MaNhap}')" style="background:#17a2b8; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; margin-right:5px;"><i class="fas fa-eye"></i> Xem</button>                    ${confirmBtn}
                 </td>
             </tr>
         `;
@@ -63,20 +87,78 @@ window.filterOrders = function(status) {
     window.renderHistoryTable(status);
 };
 
-// Hàm Xác Nhận (Cộng kho)
-window.confirmOrder = function(orderId) {
-    if(confirm(`Admin có chắc chắn XÁC NHẬN phiếu ${orderId} không?\nSố lượng sẽ được cộng trực tiếp vào Tồn Kho.`)) {
-        const orderIndex = window.ordersDb.findIndex(o => o.id === orderId);
-        if(orderIndex !== -1) {
-            window.ordersDb[orderIndex].status = "completed"; 
-            alert(`✅ XÁC NHẬN THÀNH CÔNG!\nPhiếu ${orderId} đã được xử lý xong và hàng đã vào kho.`);
+// Hàm Xác Nhận (Gọi API Update DB & Cộng kho qua Trigger)
+window.confirmOrder = async function(orderId) {
+    if(confirm(`Admin có chắc chắn XÁC NHẬN phiếu PN-${orderId} không?\nSố lượng sẽ được cộng trực tiếp vào Tồn Kho DB.`)) {
+        try {
+            // Gửi ID lên server để chuyển trạng thái thành 'Đã hoàn thành'
+            const response = await fetch('api_nhaphang.php?action=confirm_order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `maNhap=${orderId}`
+            });
             
-            // Cập nhật lại danh sách ngay lập tức sau khi duyệt
-            const currentFilter = document.getElementById("statusFilter").value;
-            window.renderHistoryTable(currentFilter); 
+            const result = await response.json();
+            
+            if(result.success) {
+                alert(`✅ XÁC NHẬN THÀNH CÔNG!\nPhiếu PN-${orderId} đã được xử lý xong và hàng đã vào kho.`);
+                window.loadServerData(); // Tải lại toàn bộ dữ liệu mới nhất từ DB
+            } else {
+                alert("Lỗi từ server: " + (result.error || "Không xác định"));
+            }
+        } catch (error) {
+            console.error("Lỗi:", error);
+            alert("Không thể kết nối đến máy chủ.");
         }
     }
 };
+
+// Hàm Gọi API Lấy và Xem Chi Tiết Phiếu Nhập
+window.viewOrderDetails = async function(orderId) {
+    try {
+        const response = await fetch(`api_nhaphang.php?action=get_order_details&id=${orderId}`);
+        const details = await response.json();
+
+        if (details.error) {
+            alert("Lỗi: " + details.error);
+            return;
+        }
+
+        // Đổ dữ liệu vào Modal View
+        document.getElementById("viewOrderId").innerText = `PN-${orderId}`;
+        const tbody = document.getElementById("viewOrderDetailsBody");
+        tbody.innerHTML = "";
+
+        if (details.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center">Phiếu này không có mặt hàng nào.</td></tr>`;
+        } else {
+            details.forEach(item => {
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr>
+                        <td><strong>${item.MaHang}</strong></td>
+                        <td>${item.TenHang}</td>
+                        <td>${item.DonViTinh}</td>
+                        <td style="font-weight: bold; color: #d9534f;">${item.SoLuong}</td>
+                    </tr>
+                `);
+            });
+        }
+
+        // Mở Modal
+        document.getElementById("viewOrderModal").style.display = "flex";
+
+    } catch (error) {
+        console.error("Lỗi:", error);
+        alert("Không thể tải chi tiết phiếu nhập.");
+    }
+};
+
+// Sự kiện đóng Modal Xem chi tiết
+document.addEventListener("DOMContentLoaded", function () {
+    const closeViewModal = () => document.getElementById("viewOrderModal").style.display = "none";
+    document.getElementById("closeViewModalBtn")?.addEventListener("click", closeViewModal);
+    document.getElementById("btnCancelViewModal")?.addEventListener("click", closeViewModal);
+});
 
 // Quản lý Modal
 window.openModal = function() {
@@ -86,41 +168,8 @@ window.closeModal = function() {
     document.getElementById("orderModal").style.display = "none";
 }
 
-// Hàm Xem chi tiết (Chỉ đọc)
-window.viewOrder = function(orderId) {
-    const order = window.ordersDb.find(o => o.id === orderId);
-    if(!order) return;
-
-    const productTableBody = document.getElementById("productTableBody");
-    document.getElementById("formTitle").innerText = `Chi tiết Phiếu Nhập: ${order.id}`;
-    document.getElementById("orderId").value = order.id;
-    document.getElementById("orderDate").value = order.date;
-    document.getElementById("supplier").value = order.supplier;
-
-    productTableBody.innerHTML = "";
-    order.items.forEach(item => {
-        const rowHTML = `
-            <tr>
-                <td><select style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" disabled><option>${item.name}</option></select></td>
-                <td><input type="number" value="${item.qty}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" disabled></td>
-                <td><input type="text" value="${item.note}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" disabled></td>
-                <td class="text-center col-action" style="display: none;"></td>
-            </tr>
-        `;
-        productTableBody.insertAdjacentHTML('beforeend', rowHTML);
-    });
-
-    document.getElementById("orderDate").disabled = true;
-    document.getElementById("supplier").disabled = true;
-    document.getElementById("btnAddRow").style.display = "none";
-    document.getElementById("formActionButtons").style.display = "none";
-    document.getElementById("colAction").style.display = "none";
-
-    window.openModal();
-};
-
 // ==========================================
-// 3. KHỞI TẠO & SỰ KIỆN KHI TRANG LOAD
+// 4. KHỞI TẠO & SỰ KIỆN KHI TRANG LOAD
 // ==========================================
 document.addEventListener("DOMContentLoaded", function () {
     const statusFilter = document.getElementById("statusFilter");
@@ -130,25 +179,26 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Bắt buộc mặc định lọc phiếu Pending
     statusFilter.value = "pending"; 
-    window.renderHistoryTable("pending"); 
+
+    // KÍCH HOẠT TẢI DỮ LIỆU TỪ SERVER
+    window.loadServerData(); 
 
     document.getElementById("orderDate").valueAsDate = new Date();
 
-    function generateNewOrderId() {
-        const lastOrder = window.ordersDb[window.ordersDb.length - 1];
-        const lastNumber = lastOrder ? parseInt(lastOrder.id.split("-")[1]) : 1000;
-        document.getElementById("orderId").value = "NH-" + (lastNumber + 1);
-    }
-
+    // Sinh các dòng sản phẩm động từ DB
     function getProductRowHTML() {
+        let optionsHTML = '<option value="">-- Chọn sản phẩm --</option>';
+        if (window.productsList && window.productsList.length > 0) {
+            window.productsList.forEach(prod => {
+                optionsHTML += `<option value="${prod.MaHang}">${prod.TenHang} (${prod.DonViTinh})</option>`;
+            });
+        }
+
         return `
             <tr>
                 <td>
-                    <select class="item-name" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
-                        <option value="">-- Chọn sản phẩm --</option>
-                        <option value="Sữa tươi tiệt trùng 180ml">Sữa tươi tiệt trùng 180ml</option>
-                        <option value="Sữa chua có đường 100g">Sữa chua có đường 100g</option>
-                        <option value="Sữa đặc Ông Thọ">Sữa đặc Ông Thọ</option>
+                    <select class="item-id" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                        ${optionsHTML}
                     </select>
                 </td>
                 <td><input type="number" min="1" value="1" class="item-qty" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;"></td>
@@ -167,6 +217,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Mở modal thêm mới
     document.getElementById("btnCreateNew").addEventListener("click", function() {
         document.getElementById("formTitle").innerText = "Lập Phiếu Nhập Dự Trù";
+        document.getElementById("orderId").value = "Hệ thống tự cấp ID"; // DB có IDENTITY tự tăng
         document.getElementById("orderDate").disabled = false;
         document.getElementById("supplier").disabled = false;
         document.getElementById("btnAddRow").style.display = "inline-block";
@@ -175,7 +226,6 @@ document.addEventListener("DOMContentLoaded", function () {
         
         document.getElementById("productTableBody").innerHTML = "";
         document.getElementById("productTableBody").insertAdjacentHTML('beforeend', getProductRowHTML()); 
-        generateNewOrderId();
         
         window.openModal();
     });
@@ -190,54 +240,71 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // ==========================================
-    // XỬ LÝ LƯU PHIẾU (ĐÃ THÊM VALIDATE SỐ LƯỢNG)
+    // XỬ LÝ LƯU PHIẾU LÊN SERVER (POST API)
     // ==========================================
-    document.getElementById("btnSaveDraft").addEventListener("click", function() {
+    document.getElementById("btnSaveDraft").addEventListener("click", async function() {
         const rows = document.getElementById("productTableBody").querySelectorAll("tr");
         if(rows.length === 0) {
             alert("Vui lòng thêm ít nhất 1 mặt hàng!"); 
             return;
         }
 
-        // 1. KIỂM TRA SỐ LƯỢNG MỌI DÒNG PHẢI > 0
-        let isValidQty = true;
+        let isValid = true;
+        const itemsToSave = [];
+
+        // Kiểm tra hợp lệ từng dòng
         rows.forEach(row => {
+            const productId = row.querySelector(".item-id").value;
             const qty = parseInt(row.querySelector(".item-qty").value);
-            if (isNaN(qty) || qty <= 0) {
-                isValidQty = false;
+            
+            if (!productId || isNaN(qty) || qty <= 0) {
+                isValid = false;
+            } else {
+                itemsToSave.push({ id: productId, qty: qty });
             }
         });
 
-        if (!isValidQty) {
-            alert("Lỗi: Số lượng nhập của tất cả mặt hàng phải lớn hơn 0!");
-            return; // Chặn lưu phiếu
+        if (!isValid) {
+            alert("Lỗi: Vui lòng chọn sản phẩm và nhập số lượng lớn hơn 0 cho tất cả mặt hàng!");
+            return; 
         }
 
-        // 2. GOM DỮ LIỆU
-        const newOrder = {
-            id: document.getElementById("orderId").value,
-            date: document.getElementById("orderDate").value,
+        const payload = {
             supplier: document.getElementById("supplier").value,
-            status: "pending", 
-            items: []
+            date: document.getElementById("orderDate").value,
+            items: itemsToSave
         };
 
-        rows.forEach(row => {
-            newOrder.items.push({
-                name: row.querySelector(".item-name").value,
-                qty: parseInt(row.querySelector(".item-qty").value),
-                note: row.querySelector(".item-note").value
-            });
-        });
+        // Vô hiệu hóa nút lưu để tránh click 2 lần
+        const btnSave = document.getElementById("btnSaveDraft");
+        btnSave.disabled = true;
+        btnSave.innerText = "Đang xử lý...";
 
-        // 3. ĐƯA VÀO DANH SÁCH & CẬP NHẬT GIAO DIỆN
-        window.ordersDb.push(newOrder); 
-        alert("Đã tạo Phiếu Dự Trù thành công!\nTrạng thái: Đang chờ Admin xác nhận.");
-        
-        window.closeModal(); 
-        
-        // Gọi lại bảng hiển thị tức thì
-        statusFilter.value = "pending";
-        window.renderHistoryTable("pending"); 
+        try {
+            // Gửi dữ liệu lên API bằng POST
+            const response = await fetch('api_nhaphang.php?action=create_order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+            
+            if(result.success) {
+                alert("Đã tạo Phiếu Dự Trù thành công vào Database!\nTrạng thái: Đang chờ Admin xác nhận.");
+                window.closeModal(); 
+                statusFilter.value = "pending";
+                window.loadServerData(); // Load lại data từ Server
+            } else {
+                alert("Lỗi từ server: " + (result.error || "Không xác định"));
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Không thể kết nối tới server. Vui lòng kiểm tra lại api_nhaphang.php");
+        } finally {
+            // Khôi phục trạng thái nút bấm
+            btnSave.disabled = false;
+            btnSave.innerHTML = `<i class="fas fa-save"></i> Gửi phiếu dự trù`;
+        }
     });
 });

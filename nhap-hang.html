@@ -98,6 +98,31 @@
                             </select>
                         </div>
                     </div>
+            <div id="viewOrderModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="page-title" style="margin: 0;">Chi Tiết Phiếu Nhập <span id="viewOrderId" style="color:#0056b3;"></span></h2>
+            <span class="close-modal" id="closeViewModalBtn">&times;</span>
+        </div>
+        <div class="modal-body">
+            <table class="data-table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Mã Hàng</th>
+                        <th>Tên Sản Phẩm</th>
+                        <th>Đơn Vị Tính</th>
+                        <th>Số Lượng Nhập</th>
+                    </tr>
+                </thead>
+                <tbody id="viewOrderDetailsBody">
+                    </tbody>
+            </table>
+            <div class="form-actions" style="margin-top: 20px; text-align: right;">
+                <button class="btn-cancel" id="btnCancelViewModal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
 
                     <table class="data-table table-bordered">
                         <thead>
