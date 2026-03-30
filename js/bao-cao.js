@@ -1,13 +1,7 @@
 // ==========================================
 // 1. DỮ LIỆU MÔ PHỎNG CHI TIẾT ĐƠN HÀNG
 // ==========================================
-const salesReportDb = [
-    { id: "XH-2001", date: "2026-03-05", customer: "Tạp hóa Cô Ba", qty: 150, cost: 7500000, revenue: 9500000, paid: 9500000 },
-    { id: "XH-2002", date: "2026-03-12", customer: "Đại lý cấp 2 - Quận 1", qty: 500, cost: 25000000, revenue: 32000000, paid: 20000000 },
-    { id: "XH-2003", date: "2026-03-18", customer: "Siêu thị Mini Mart", qty: 300, cost: 15000000, revenue: 20000000, paid: 20000000 },
-    { id: "XH-2004", date: "2026-03-25", customer: "Tạp hóa Cô Ba", qty: 100, cost: 5000000, revenue: 6500000, paid: 3000000 },
-    { id: "XH-2005", date: "2026-03-26", customer: "Đại lý cấp 2 - Quận 1", qty: 200, cost: 10000000, revenue: 13000000, paid: 0 }
-];
+let salesReportDb = [];
 
 let currentChart = null;
 const formatCurrency = (num) => num.toLocaleString('vi-VN') + "đ";
@@ -205,14 +199,33 @@ function exportToPDF() {
 }
 
 // ==========================================
-// 6. KHỞI TẠO KHI TRANG LOAD
+// 6. KHỞI TẠO & GỌI API KHI TRANG LOAD 
 // ==========================================
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("filterMonth").value = "03";
+document.addEventListener("DOMContentLoaded", async () => {
+    document.getElementById("filterMonth").value = "03"; 
     document.getElementById("filterYear").value = "2026";
-    
-    filterData();
 
+    try {
+        // GỌI TỚI FILE PHP (Sửa lại tên thư mục chứa code của bạn cho đúng)
+        // Ví dụ code bạn để trong htdocs/vinamilk/ thì link sẽ là:
+        const response = await fetch('../api_baocao.php');
+        const data = await response.json();
+        
+        if (data.error) {
+            console.error("Lỗi từ PHP:", data.error);
+            alert("Lỗi: " + data.error);
+            return;
+        }
+
+        salesReportDb = data; // Gán dữ liệu thật
+        filterData(); // Lọc và vẽ giao diện
+        
+    } catch (error) {
+        console.error("Lỗi khi kết nối đến API:", error);
+        alert("Không thể tải dữ liệu. Hãy đảm bảo XAMPP (Apache) đang chạy!");
+    }
+
+    // Gắn sự kiện cho các nút bấm
     document.getElementById("btnFilter").addEventListener("click", filterData);
     document.getElementById("btnResetFilter").addEventListener("click", resetFilter);
     document.getElementById("btnExportExcel").addEventListener("click", exportToExcel);
